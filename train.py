@@ -13,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 def train(encoder, 
           decoder,
           hrtfType,
+          sparseness,
           trainDL, 
           valDL,
           encLR,
@@ -44,7 +45,10 @@ def train(encoder,
         for batchNo, batch in enumerate(trainDL):
             # Get batch
             if hrtfType is "hrtf":
-                inL = batch["hrtf_l"].to(device)
+                if sparseness == "complete":
+                    inL = batch["hrtf_l"].to(device)
+                elif sparseness == "sparse":
+                    inL = batch["sparse_hrtf_l"].to(device)
                 targetL = inL
             elif hrtfType == "hrir":
                 inL = batch["hrir_l"].to(device)
@@ -81,7 +85,10 @@ def train(encoder,
         for batchNo, batch in enumerate(valDL):
             # Get batch
             if hrtfType is "hrtf":
-                inL = batch["hrtf_l"].to(device)
+                if sparseness == "complete":
+                    inL = batch["hrtf_l"].to(device)
+                elif sparseness == "sparse":
+                    inL = batch["sparse_hrtf_l"].to(device)
                 targetL = inL
             elif hrtfType == "hrir":
                 inL = batch["hrir_l"].to(device)
@@ -169,6 +176,7 @@ if __name__ == "__main__":
     modelOut = train(encoder=encoder, 
                      decoder=decoder,
                      hrtfType=gp.hrtfType,
+                     sparseness=gp.sparseness,
                      trainDL=trainDL, 
                      valDL=valDL,
                      encLR=gp.encLR,

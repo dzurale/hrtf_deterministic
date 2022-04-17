@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.nn as nn
-from models import AEEncoder, AEDecoder, SparseConvEncoder, weights_init
+from models import AEEncoder, AEDecoder, SparseConvEncoder, SparseTConvEncoder, weights_init
 import numpy as np
 import h5py
 from dataset import HRTFDataset, get_dataloaders
@@ -15,9 +15,9 @@ def train(interpEncoder,
           hrtfType, 
           trainDL, 
           valDL, 
-          interpEncLR, 
+          encLR, 
           numEpochs, 
-          decFTLR, 
+          decLR, 
           decFTEpochs,
           device):
     
@@ -39,13 +39,13 @@ def train(interpEncoder,
     
     # Initialize sparse encoder weights
     interpEncoder.apply(weights_init)
-    if decTrainMode == "full":
+    if decTrainMode == "end2end":
         aeDecoder.apply(weights_init)
 
     # Initialize optimizers
-    interpOptimizer = torch.optim.Adam(interpEncoder.parameters(), lr=interpEncLR, betas=(0.5, 0.999))
-    if decFTEpochs or (decTrainMode == "full"):
-        decOptimizer = torch.optim.Adam(aeDecoder.parameters(), lr=decFTLR, betas=(0.5, 0.999))
+    interpOptimizer = torch.optim.Adam(interpEncoder.parameters(), lr=encLR, betas=(0.5, 0.999))
+    if decFTEpochs or (decTrainMode == "end2end"):
+        decOptimizer = torch.optim.Adam(aeDecoder.parameters(), lr=decLR, betas=(0.5, 0.999))
         
     def encoder_train_epoch():
         lossEp = 0
@@ -61,7 +61,7 @@ def train(interpEncoder,
             # Initializations
             # Clear gradients
             interpOptimizer.zero_grad()
-            if decTrainMode == "full":
+            if decTrainMode == "end2end":
                 decOptimizer.zero_grad()
                                         
             # Forward pass
@@ -75,7 +75,7 @@ def train(interpEncoder,
             loss.backward()
             
             # update weights
-            if decTrainMode == "full":
+            if decTrainMode == "end2end":
                 decOptimizer.step()
             interpOptimizer.step()
             
@@ -152,11 +152,11 @@ def train(interpEncoder,
     for thisEpoch in range(numEpochs):
         lossTrain = encoder_train_epoch()
         interpEncoder.eval()
-        if decTrainMode == "full":
+        if decTrainMode == "end2end":
             aeDecoder.eval()
         lossVal = get_val_loss()
         interpEncoder.train()
-        if decTrainMode == "full":
+        if decTrainMode == "end2end":
             aeDecoder.train()
         
         if hrtfType == "hrtf":
@@ -172,7 +172,7 @@ def train(interpEncoder,
 
             # To save every successive best model
             if saveFlag:
-                if decTrainMode == "full":
+                if decTrainMode == "end2end":
                     torch.save({'interpEncoder': interpEncoder.state_dict(),
                                 'interpOptimizer': interpOptimizer.state_dict(),
                                 'interpDecoder': aeDecoder.state_dict(),
@@ -259,11 +259,18 @@ if __name__ == "__main__":
                           modelDepth=gp.modelDepth, featMapsMultFact=gp.featMapsMultFact, numConvBlocks=gp.numConvBlocks,
                           outPadArray=gp.decOutPadArray, dropoutP=gp.dropoutP).to(device)
     
-    interpEncoder = SparseConvEncoder(inChannels=gp.inOutChannels, outChannels=gp.scOutChannels, 
-                                      BNFlag=gp.scBNFlag, finalActType=gp.scFinalActType, 
-                                      numConvBlocks=gp.scNumConvBlocks, kSizeArray=gp.scKSizeArray, 
-                                      strideArray=gp.scStrideArray, padArray=gp.scPadArray, 
-                                      dropoutP=gp.interpDropoutP).to(device)
+    if gp.interpEncoderOp == "conv":
+        interpEncoder = SparseConvEncoder(inChannels=gp.inOutChannels, outChannels=gp.scOutChannels, 
+                                          BNFlag=gp.scBNFlag, finalActType=gp.scFinalActType, 
+                                          numConvBlocks=gp.scNumConvBlocks, kSizeArray=gp.scKSizeArray, 
+                                          strideArray=gp.scStrideArray, padArray=gp.scPadArray, 
+                                          dropoutP=gp.interpDropoutP).to(device)
+    elif gp.interpEncoderOp == "tconv":
+        interpEncoder = SparseTConvEncoder(inChannels=gp.inOutChannels, outChannels=gp.stcOutChannels, 
+                                           BNFlag=gp.stcBNFlag, finalActType=gp.stcFinalActType,
+                                           numTConvBlocks=gp.stcNumTConvBlocks, kSizeArray=gp.stcKSizeArray, 
+                                           strideArray=gp.stcStrideArray, padArray=gp.stcPadArray, 
+                                           outPadArray=gp.stcOutPadArray, dropoutP=gp.interpDropoutP).to(device)
     
     if gp.interpDecTrainMode == "ft":
         aeCheckpoint = torch.load(gp.interpAeLoadPath, map_location=device)
@@ -276,8 +283,8 @@ if __name__ == "__main__":
                      hrtfType=gp.hrtfType,
                      trainDL=trainDL, 
                      valDL=valDL,
-                     interpEncLR=gp.interpEncLR,
+                     encLR=gp.interpEncLR,
                      numEpochs=gp.interpNumEpochs,
-                     decFTLR=gp.interpDecFTLR,
+                     decLR=gp.interpDecLR,
                      decFTEpochs=gp.interpDecFTEpochs,
                      device=device)

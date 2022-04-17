@@ -13,9 +13,10 @@ from torch.utils.tensorboard import SummaryWriter
 def train(encoder, 
           decoder,
           checkpoint,
+          sparseness,
+          hrtfType,
           trainDL, 
           valDL,
-          hrtfType,
           encLR,
           decLR,
           numEpochs,
@@ -49,7 +50,10 @@ def train(encoder,
         for batchNo, batch in enumerate(trainDL):
             # Get batch
             if hrtfType is "hrtf":
-                inL = batch["hrtf_l"].to(device)
+                if sparseness == "complete":
+                    inL = batch["hrtf_l"].to(device)
+                elif sparseness == "sparse":
+                    inL = batch["sparse_hrtf_l"].to(device)
                 targetL = inL
             elif hrtfType == "hrir":
                 inL = batch["hrir_l"].to(device)
@@ -86,7 +90,10 @@ def train(encoder,
         for batchNo, batch in enumerate(valDL):
             # Get batch
             if hrtfType is "hrtf":
-                inL = batch["hrtf_l"].to(device)
+                if sparseness == "complete":
+                    inL = batch["hrtf_l"].to(device)
+                elif sparseness == "sparse":
+                    inL = batch["sparse_hrtf_l"].to(device)
                 targetL = inL
             elif hrtfType == "hrir":
                 inL = batch["hrir_l"].to(device)
@@ -177,9 +184,10 @@ if __name__ == "__main__":
     modelOut = train(encoder=encoder, 
                      decoder=decoder,
                      checkpoint=checkpoint,
+                     sparseness=gp.sparseness,
+                     hrtfType=gp.hrtfType,
                      trainDL=trainDL, 
                      valDL=valDL,
-                     hrtfType=gp.hrtfType,
                      encLR=gp.encLR,
                      decLR=gp.decLR,
                      numEpochs=gp.numEpochs,

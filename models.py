@@ -19,20 +19,19 @@ class AEEncoder(nn.Module):
         self.dropoutP = dropoutP
         self.moduleDict = nn.ModuleDict()
         
+        self.firstConv = nn.Conv2d(in_channels=inChannels, out_channels=rootFeatMaps, 
+                                   kernel_size=3, stride=1, padding=1,
+                                   groups=convGroups)
+        self.moduleDict["conv_first"] = self.firstConv
+
+        if BNFlag:
+            self.batchNorm = nn.BatchNorm2d(num_features=rootFeatMaps)
+            self.moduleDict["bn_first"] = self.batchNorm
+
+        inChannels=rootFeatMaps
+        
         for depth in range(modelDepth - 1):
-            outFeatMaps = int((featMapsMultFact ** (depth+1)) * rootFeatMaps)
-            
-            if depth == 0:
-                self.firstConv = nn.Conv2d(in_channels=inChannels, out_channels=rootFeatMaps, 
-                                           kernel_size=3, stride=1, padding=1,
-                                           groups=convGroups)
-                self.moduleDict["conv_first"] = self.firstConv
-                
-                if BNFlag:
-                    self.batchNorm = nn.BatchNorm2d(num_features=rootFeatMaps)
-                    self.moduleDict["bn_first"] = self.batchNorm
-                    
-                inChannels=rootFeatMaps
+            outFeatMaps = int((featMapsMultFact ** (depth+1)) * rootFeatMaps)    
                     
             for convNo in range(numConvBlocks):
                 self.convBlock = nn.Conv2d(in_channels=inChannels, out_channels=outFeatMaps, 
@@ -62,7 +61,7 @@ class AEEncoder(nn.Module):
                         
             inChannels=outFeatMaps
             
-        self.finalConv = nn.Conv2d(in_channels=outFeatMaps, out_channels=outFeatMaps, 
+        self.finalConv = nn.Conv2d(in_channels=inChannels, out_channels=inChannels, 
                                 kernel_size=3, stride=1, padding=1,
                                 groups=convGroups)
                         
@@ -107,23 +106,24 @@ class AEDecoder(nn.Module):
         self.dropoutP = dropoutP
         self.moduleDict = nn.ModuleDict()
         
+        inChannels = int((featMapsMultFact ** (modelDepth - 2 + 1)) * rootFeatMaps)
+        outFeatMaps = inChannels
+        self.firstConv = nn.Conv2d(in_channels=inChannels, out_channels=outFeatMaps,
+                                   kernel_size=3, stride=1, padding=1,
+                                   groups=convGroups)
+        self.moduleDict["conv_first"] = self.firstConv
+
+        if BNFlag:
+            self.batchNorm = nn.BatchNorm2d(num_features=inChannels)
+            self.moduleDict["bn_first"] = self.batchNorm
+        
         for depth in range(modelDepth - 2, -1, -1):
             inChannels = int((featMapsMultFact ** (depth + 1)) * rootFeatMaps)
             if numConvBlocks:
                 outFeatMaps = inChannels
             else:
                 outFeatMaps = int((featMapsMultFact ** depth) * rootFeatMaps)
-                
-            if depth == modelDepth - 2:
-                self.firstConv = nn.Conv2d(in_channels=inChannels, out_channels=inChannels,
-                                           kernel_size=3, stride=1, padding=1,
-                                           groups=convGroups)
-                self.moduleDict["conv_first"] = self.firstConv
-                
-                if BNFlag:
-                    self.batchNorm = nn.BatchNorm2d(num_features=inChannels)
-                    self.moduleDict["bn_first"] = self.batchNorm
-                
+                                
             self.tConvBlock = nn.ConvTranspose2d(in_channels=inChannels, out_channels=outFeatMaps,
                                                  kernel_size=2, stride=2, padding=0,
                                                  output_padding=outPadArray[depth], 
@@ -336,10 +336,10 @@ class SparseTConvEncoder(nn.Module):
         else:
             self.tconv = nn.ConvTranspose2d(in_channels=inChannels, 
                                             out_channels=outChannels, 
-                                            kernel_size=kSizeArray[tconvIdx], 
-                                            stride=strideArray[tconvIdx],
-                                            padding=padArray[tconvIdx],
-                                            output_padding=outPadArray[tconvIdx],
+                                            kernel_size=kSizeArray[0], 
+                                            stride=strideArray[0],
+                                            padding=padArray[0],
+                                            output_padding=outPadArray[0],
                                             groups=convGroups)
             self.moduleDict["tconv_{}".format(0)] = self.tconv
                 
